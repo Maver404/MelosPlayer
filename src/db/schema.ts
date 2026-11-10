@@ -26,11 +26,15 @@ export interface Track {
   /** Fingerprint used to skip duplicates on re-import. */
   hash: string;
   addedAt: number;
+  lastPlayedAt?: number;
+  playCount?: number;
 }
 
 export interface Cover {
   id: string;
   blob: Blob;
+  /** Dominant color of the artwork (hex), used to tint the UI. */
+  color?: string;
 }
 
 /** Audio blobs, used only when OPFS is not writable on this device. */
@@ -67,6 +71,9 @@ class MelosDB extends Dexie {
       blobs: 'id',
       playlists: 'id, updatedAt',
       favorites: 'trackId, addedAt',
+    });
+    this.version(2).stores({
+      tracks: 'id, hash, album, artist, addedAt, lastPlayedAt',
     });
   }
 }

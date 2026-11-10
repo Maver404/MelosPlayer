@@ -1,9 +1,14 @@
 import { db, type Track } from '../db/schema';
+import { log } from '../diagnostics/log';
 import { formatLabel, isAudioFile, mimeFor } from './formats';
+import { extractColor } from './color';
 import { readMetadata } from './metadata';
 import { saveAudio } from './storage';
 
 export type ImportStage = 'copy' | 'meta' | 'done' | 'duplicate' | 'skipped' | 'error';
+
+/** Called once per imported track, e.g. to warn about formats this device cannot play. */
+export type PlayableCheck = (mime: string) => boolean;
 
 export interface ImportEvent {
   index: number;
@@ -28,7 +33,11 @@ async function coverIdFor(artist: string, album: string): Promise<string> {
   return 'cover-' + (await sha256Hex(new TextEncoder().encode(`${artist}\u0000${album}`))).slice(0, 24);
 }
 
-export async function importFiles(files: File[], onEvent: (e: ImportEvent) => void): Promise<number> {
+export async function importFiles(
+  files: File[],
+  onEvent: (e: ImportEvent) => void,
+  canPlay?: PlayableCheck,
+): Promise<number> {
   let imported = 0;
   const total = files.length;
   for (let index = 0; index < total; index++) {
@@ -46,6 +55,12 @@ export async function importFiles(files: File[], onEvent: (e: ImportEvent) => vo
         continue;
       }
       const meta = await readMetadata(file);
+      log('tag letti', {
+        file: file.name,
+        tag: meta.tagTypes.length ? meta.tagTypes.join(',') : 'nessuno',
+        copertina: !!meta.cover,
+        ...(meta.error ? { errore: meta.error } : {}),
+      });
 
       onEvent({ ...base, stage: 'copy' });
       const id = crypto.randomUUID();
@@ -54,7 +69,9 @@ export async function importFiles(files: File[], onEvent: (e: ImportEvent) => vo
       let coverId: string | undefined;
       if (meta.cover) {
         coverId = await coverIdFor(meta.albumArtist ?? meta.artist, meta.album);
-        if (!(await db.covers.get(coverId))) await db.covers.put({ id: coverId, blob: meta.cover });
+        if (!(await db.covers.get(coverId))) {
+          await db.covers.put({ id: coverId, blob: meta.cover, color: await extractColor(meta.cover) });
+        }
       }
 
       const track: Track = {
@@ -81,7 +98,8 @@ export async function importFiles(files: File[], onEvent: (e: ImportEvent) => vo
       };
       await db.tracks.add(track);
       imported++;
-      onEvent({ ...base, stage: 'done' });
+      const playable = canPlay ? canPlay(track.mime) : true;
+      onEvent({ ...base, stage: 'done', message: playable ? undefined : 'questo dispositivo non lo riproduce' });
     } catch (err) {
       onEvent({ ...base, stage: 'error', message: err instanceof Error ? err.message : String(err) });
     }

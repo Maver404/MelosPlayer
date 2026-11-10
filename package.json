@@ -1,7 +1,7 @@
 {
   "name": "melos",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host",
@@ -11,8 +11,10 @@
     "tunnel": "cloudflared tunnel --url http://localhost:4173"
   },
   "dependencies": {
+    "@fontsource-variable/bricolage-grotesque": "^5.3.0",
     "dexie": "^4.4.7",
     "dexie-react-hooks": "^1.1.7",
+    "framer-motion": "^11.18.2",
     "music-metadata": "^11.16.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
